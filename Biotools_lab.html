@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biotools en el laboratorio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body {
+      background: linear-gradient(to bottom right, #e6f0ff, #f9fafc);
+    }
+    input, select {
+      @apply border border-gray-300 rounded px-3 py-2 w-full shadow focus:ring-2 focus:ring-indigo-500 focus:outline-none;
+    }
+    table th, table td {
+      @apply text-left px-4 py-2 border-b;
+    }
+    h1 {
+      @apply text-6xl font-extrabold text-center text-indigo-700 mb-12 drop-shadow;
+    }
+    h2 {
+      @apply text-3xl font-bold text-white bg-indigo-600 px-4 py-2 rounded shadow inline-block mb-8;
+    }
+    h3 {
+      @apply text-lg font-semibold text-gray-700;
+    }
+    .btn {
+      @apply bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2 rounded shadow transition border border-indigo-800;
+    }
+    .btn-secondary {
+      @apply bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2 rounded shadow transition border border-green-800;
+    }
+    .btn-link {
+      @apply text-indigo-600 hover:underline bg-transparent;
+    }
+    .section {
+      @apply bg-white shadow-xl rounded-2xl p-8 mb-12 border border-gray-200;
+    }
+    .highlight-box {
+      @apply bg-indigo-50 p-4 rounded-md text-indigo-700 font-medium;
+    }
+  </style>
+</head>
+<body class="font-sans antialiased p-6">
+  <div class="max-w-5xl mx-auto">
+    <h1 class="text-6xl font-bold text-center text-indigo-700 mb-12">Biotools en el laboratorio</h1>
+
+    <!-- Diluciones -->
+    <div class="section">
+      <h2 class="font-bold">Diluciones</h2>
+      <div class="grid gap-4 md:grid-cols-2">
+        <input id="C1" type="number" placeholder="Concentración inicial (C1)">
+        <input id="V1" type="number" placeholder="Volumen a tomar (V1)">
+        <input id="C2" type="number" placeholder="Concentración final (C2)">
+        <input id="V2" type="number" placeholder="Volumen final (V2)">
+        <button onclick="calcularDilucion()" class="btn col-span-2 border-2 border-indigo-500">Calcular</button>
+        <p id="resultadoDilucion" class="col-span-2 highlight-box mt-2"></p>
+      </div>
+    </div>
+
+    <!-- Conversor -->
+    <div class="section">
+      <h2 class="font-bold">Conversor</h2>
+      <p class="text-sm text-gray-600 mb-2">Conversión de ng/µL a nM (fragmentos de ADN):</p>
+      <div class="grid gap-4 md:grid-cols-2">
+        <input id="ngul" type="number" placeholder="ng/µL">
+        <input id="longitud" type="number" placeholder="Longitud del fragmento (bp)">
+        <button onclick="convertirNgANM()" class="btn col-span-2 border-2 border-indigo-500">Convertir</button>
+        <p id="resultadoConversion" class="col-span-2 highlight-box"></p>
+      </div>
+
+      <hr class="my-8">
+
+      <p class="text-sm text-gray-600 mb-2">Conversor de volúmenes:</p>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <input id="valorVol" type="number" placeholder="Valor">
+        <select id="unidadOrigen">
+          <option value="nL">nL</option>
+          <option value="uL">µL</option>
+          <option value="mL">mL</option>
+          <option value="L">L</option>
+        </select>
+        <span class="text-center place-self-center">→</span>
+        <select id="unidadDestino">
+          <option value="nL">nL</option>
+          <option value="uL">µL</option>
+          <option value="mL">mL</option>
+          <option value="L">L</option>
+        </select>
+        <button onclick="convertirVolumen()" class="btn col-span-2 md:col-span-4 border-2 border-indigo-500">Convertir</button>
+        <p id="resultadoVolumen" class="col-span-2 md:col-span-4 highlight-box"></p>
+      </div>
+    </div>
+
+    <!-- PCR y Mastermix (Sin cambios visuales) -->
+    <div class="section">
+      <h2 class="font-bold">PCR y Mastermix</h2>
+      <div id="pcrMastermix">
+        <div class="grid md:grid-cols-2 gap-4 mb-4">
+          <input id="numMuestras" type="number" placeholder="Número de muestras">
+          <input id="volFinal" type="number" placeholder="Volumen final por muestra (µL)">
+        </div>
+        <div class="flex gap-4 flex-wrap mb-6">
+          <button onclick="calcularMastermix()" class="btn">Calcular mezcla</button>
+          <button onclick="exportarExcel()" class="btn-secondary border-2 border-green-600">Exportar a Excel</button>
+        </div>
+        <h3 class="font-bold">Reactivos:</h3>
+        <div id="reactivosContainer" class="mb-4"></div>
+        <button onclick="agregarReactivo()" class="btn-link">+ Añadir reactivo</button>
+        <div id="mastermixTabla" class="mt-6 overflow-x-auto"></div>
+      </div>
+    </div>
+
+    <footer class="text-center text-sm text-gray-400 mt-10">
+      Herramientas técnicas creadas para laboratorio | Creado por Verónica Santana Díaz
+    </footer>
+  </div>
+
+  <script>
+   let reactivos = [
+  { nombre: 'Buffer 10x', vol: 1 },
+  { nombre: 'dNTPs', vol: 0.5 },
+  { nombre: 'Primers F+R', vol: 1 },
+  { nombre: 'Taq polimerasa', vol: 0.25 },
+  { nombre: 'Agua', vol: 7.25 }
+];
+
+function renderReactivos() {
+  const cont = document.getElementById('reactivosContainer');
+  cont.innerHTML = '';
+  reactivos.forEach((r, i) => {
+    cont.innerHTML += `
+      <div class="flex gap-2 items-center mb-1">
+        <input value="${r.nombre}" onchange="reactivos[${i}].nombre = this.value">
+        <input type="number" value="${r.vol}" onchange="reactivos[${i}].vol = parseFloat(this.value)" class="w-20">
+        <button onclick="eliminarReactivo(${i})" class="text-red-500 bg-transparent hover:underline">✖</button>
+      </div>`;
+  });
+}
+
+function agregarReactivo() {
+  reactivos.push({ nombre: '', vol: 0 });
+  renderReactivos();
+}
+
+function eliminarReactivo(i) {
+  reactivos.splice(i, 1);
+  renderReactivos();
+}
+
+function calcularMastermix() {
+  const muestras = parseInt(document.getElementById('numMuestras').value);
+  const volFinal = parseFloat(document.getElementById('volFinal').value);
+  if (!muestras || !volFinal) return alert('Introduce número de muestras y volumen final');
+  let html = '<table id="tablaMastermix" class="w-full text-sm table-auto"><thead><tr><th>Componente</th><th>Vol. por muestra (µL)</th><th>Total (µL)</th></tr></thead><tbody>';
+  reactivos.forEach(r => {
+    let total = (r.vol * muestras * 1.1).toFixed(2);
+    html += `<tr><td>${r.nombre}</td><td>${r.vol}</td><td>${total}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('mastermixTabla').innerHTML = html;
+}
+
+function exportarExcel() {
+  let tabla = document.getElementById("tablaMastermix");
+  if (!tabla) return alert("Primero genera la tabla de Mastermix");
+  let wb = XLSX.utils.table_to_book(tabla, { sheet: "Mastermix" });
+  XLSX.writeFile(wb, "mastermix.xlsx");
+}
+
+function calcularDilucion() {
+  let [C1, V1, C2, V2] = ['C1', 'V1', 'C2', 'V2'].map(id => parseFloat(document.getElementById(id).value));
+  if (!C1 && C2 && V2 && V1) C1 = (C2 * V2) / V1;
+  else if (!V1 && C1 && C2 && V2) V1 = (C2 * V2) / C1;
+  else if (!C2 && C1 && V1 && V2) C2 = (C1 * V1) / V2;
+  else if (!V2 && C1 && V1 && C2) V2 = (C1 * V1) / C2;
+  document.getElementById('resultadoDilucion').innerText = `Resultado: C1=${C1?.toFixed(2)}, V1=${V1?.toFixed(2)}, C2=${C2?.toFixed(2)}, V2=${V2?.toFixed(2)}`;
+}
+
+function convertirNgANM() {
+  let ngul = parseFloat(document.getElementById('ngul').value);
+  let bp = parseInt(document.getElementById('longitud').value);
+  if (!ngul || !bp) return alert("Faltan datos");
+  let fmol = (ngul * 1000) / (bp * 660);
+  let nM = fmol;
+  document.getElementById('resultadoConversion').innerText = `${ngul} ng/µL → ${nM.toFixed(2)} nM para ${bp} bp`;
+}
+
+function convertirVolumen() {
+  const valor = parseFloat(document.getElementById('valorVol').value);
+  const origen = document.getElementById('unidadOrigen').value;
+  const destino = document.getElementById('unidadDestino').value;
+  const factores = { 'nL': 1, 'uL': 1e3, 'mL': 1e6, 'L': 1e9 };
+  const valorFinal = valor * (factores[origen] / factores[destino]);
+  document.getElementById('resultadoVolumen').innerText = `${valor} ${origen} = ${valorFinal.toFixed(2)} ${destino}`;
+}
+
+// Render inicial de reactivos
+renderReactivos();
+  </script>
+</body>
+</html>
+
+
+
+  
+
+
+
+
+
